@@ -1,4 +1,4 @@
-# vpn-deploy-toolkit · 一键全自动 VPN 部署
+# vpn-deploy-kit · 一键全自动 VPN 部署
 
 在全新 Ubuntu VPS 上**一键部署双协议 VPN：Reality(VLESS/tcp 443) + Hysteria2(udp 8443)**，并自动生成 Clash Verge 客户端配置。
 **单仓库自包含**——克隆下来，设 3 个环境变量，跑一条命令即可，无需再拉任何其他仓库。
@@ -16,8 +16,8 @@
 
 ```bash
 # 0. 克隆并装依赖
-git clone https://github.com/deepseekexpo-sketch/vpn-deploy-toolkit.git
-cd vpn-deploy-toolkit
+git clone https://github.com/deepseekexpo-sketch/vpn-deploy-kit.git
+cd vpn-deploy-kit
 pip install paramiko
 
 # 1. 设置你的 VPS 凭据（环境变量，命令结束后即失效，不会入库）
@@ -43,7 +43,7 @@ python deploy.py
 ## 仓库结构
 
 ```
-vpn-deploy-toolkit/
+vpn-deploy-kit/
 ├── deploy.py               # ★ 一键全自动入口（跑这个就行）
 ├── kit/                    # vpn-deploy-kit 完整套件（自包含，带 v2.9.4 修复）
 │   ├── bootstrap.sh        # 编排器
@@ -52,10 +52,26 @@ vpn-deploy-toolkit/
 │   ├── templates/          # Reality/Hysteria2/客户端模板
 │   └── tests/              # 模板渲染测试
 ├── scripts/                # （调试用）分步部署辅助脚本，环境变量版
+├── skills/                 # WorkBuddy AI 部署技能（脱敏）
+│   └── vpn-deploy-kit/     # SKILL.md + 5 个环境变量版辅助脚本模板
 ├── templates/
 │   └── client.example.yaml # 客户端配置格式参考（占位示例）
 └── deliverables/           # 部署后自动生成（gitignore，不入库）
 ```
+
+## skills/ · AI 部署技能（可选）
+
+`skills/vpn-deploy-kit/` 是给 **WorkBuddy / AI 助手** 用的部署技能（脱敏），不是部署代码本身：
+
+- `SKILL.md` —— 让 AI 学会整套部署流程（触发场景 / 环境约束 / 部署步骤 / 10 条踩坑速查表）
+- `scripts/` —— 5 个**环境变量版**辅助脚本模板（`ssh_init` / `upload_kit` / `deploy_remote` / `exec_deploy` / `manual_reality`），凭据从 `VPN_HOST/VPN_PORT/VPN_USER/VPN_PASS` 读取，无硬编码
+
+**用法**（3 选 1）：
+1. 让 AI 助手直接读取 `skills/vpn-deploy-kit/SKILL.md`，指导它按技能流程部署；
+2. 在 WorkBuddy 中把 `skills/vpn-deploy-kit/` 装为用户级技能（`~/.workbuddy/skills/`）；
+3. 手动阅读 `scripts/` 模板，照做即可。
+
+> 与 `kit/` 的区别：`kit/` 是**实际一键部署的所有脚本**（`deploy.py` 直接上传它）；`skills/` 是**教 AI 上手**的技能说明 + 参考脚本，二者互补、内容都已脱敏。
 
 ## 部署原理
 
