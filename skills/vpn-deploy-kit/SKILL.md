@@ -3,7 +3,7 @@ name: vpn-deploy-kit
 description: "Deploy a dual-protocol VPN (Reality + Hysteria2) on a fresh Ubuntu VPS using the vpn-deploy-kit repo, incl. 3x-ui v2.9.4 compatibility fixes."
 description_zh: "用 vpn-deploy-kit 在全新 Ubuntu VPS 上部署双协议 VPN(Reality + Hysteria2), 含 3x-ui v2.9.4 兼容修复"
 description_en: "Deploy a dual-protocol VPN (Reality + Hysteria2) on a fresh Ubuntu VPS using the vpn-deploy-kit repo, including 3x-ui v2.9.4 compatibility fixes and client config delivery."
-version: 1.0.0
+version: 1.1.0
 ---
 
 # VPN 部署(Reality + Hysteria2 双协议)
@@ -38,7 +38,8 @@ python .tmp-deploy/ssh_init_new.py   # 连+注入部署公钥(幂等)+探测OS/a
 ```
 - 若 `BadAuthenticationType: allowed types: ['password']` → sshd 禁公钥, 全程走密码(脚本参数改 password)。
 - 探测确认: 全新则无 x-ui; 若有则版本。
-- 先 `apt-get install -y jq`(缺 jq 多处脚本崩)。
+- 前置依赖(必装, 缺任一则 03 失败): `apt-get install -y jq sqlite3`。
+  - 缺 jq → 多处脚本崩; 缺 sqlite3 → 03 报 "sqlite 更新 settings.secret 失败 (v2.9.4)"(见踩坑表#11)。
 
 ### 3. 上传 kit
 运行(继续用已导出的 VPN_* 环境变量):
@@ -79,6 +80,7 @@ python -c "...sftp.get(...)"   # 取 output/client-<IP>.yaml + secrets-<IP>.md �
 | 8 | Defense 3 误回滚(xray stale) | 秒级时钟竞态 | `xray_lstart_ts+60 < restart_ts` 才判 stale(改 04 脚本) |
 | 9 | fail2ban 封本机 IP → SSH 零响应 | 旧机场景 | 让用户走 VNC `fail2ban-client set sshd unbanip <本机IP>`; 新机同线路一般无此问题 |
 | 10 | xray 26.x x25519 输出格式变化 | `Private key:`→`PrivateKey:`/`Password (PublicKey):` | awk 解析改 `grep -iE 'private[[:space:]]*key' | sed 's/^[^:]*:[[:space:]]*//'` |
+| 11 | 03 卡死 "sqlite 更新 settings.secret 失败 (v2.9.4)" | **新机未装 sqlite3 客户端**, `sqlite3` command not found rc=127 | 03 用 sqlite 写 secret 是硬依赖 → `apt-get install -y sqlite3` 后重跑 bootstrap(幂等继续)。2026-08-25 在 103.100.158.133 实测命中 |
 
 ## 存档脚本清单(`archive/2026-08-21/deploy/scripts/`)
 | 脚本 | 作用 |

@@ -154,6 +154,16 @@ state_set "step.03.db_backup_path" "${db_backup_03}"
 
 # Step 8: 配置面板 — v2.9.4 用 settings.secret 认证(替代旧 username/password/webBasePath)。
 # 生成强随机 secret 写入 db, 面板登录/访问靠它; 不再依赖失效的 `x-ui setting` CLI。
+# 自举: 确保 sqlite3 存在(BOOTSTRAP_FORCE=1 会跳过 00-precheck 依赖检查, 缺 sqlite3 时这里补救, 见踩坑表#11)
+if command -v sqlite3 &>/dev/null; then
+    log_info "sqlite3 present ✓"
+else
+    log_warn "sqlite3 missing, installing (v2.9.4 secret write is a hard dep)"
+    export DEBIAN_FRONTEND=noninteractive
+    (apt-get update -qq && apt-get install -y -qq sqlite3) \
+        || rollback_03 "failed to install sqlite3 (needed for settings.secret write)"
+    command -v sqlite3 &>/dev/null || rollback_03 "sqlite3 still missing after install"
+fi
 NEW_SECRET="$(openssl rand -hex 16)"
 sqlite3 /etc/x-ui/x-ui.db "UPDATE settings SET value='${NEW_SECRET}' WHERE key='secret';" \
     || rollback_03 "sqlite 更新 settings.secret 失败 (v2.9.4)"
