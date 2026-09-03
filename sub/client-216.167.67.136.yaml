@@ -1,0 +1,138 @@
+# mihomo / Clash Verge Rev 客户端配置(一份 yaml 覆盖 Mac + Windows)
+# 导入方式: 删旧配置 → import 此文件 → 激活
+#
+# ⚠️ Verge 用户必读:必须在 Verge "设置 → DNS 设置" 中关闭 "DNS 设置" 开关
+#    (`enable_dns_settings: false`)。Verge 默认开着,会用 UI 内置 DNS 配置
+#    覆盖本文件的 dns 段,导致 chatgpt.com 走 DIRECT、baidu.com 5s 慢的
+#    双重故障。详见随附 README 的 "Verge UI 配合要求"。
+# 验证生效:`curl --unix-socket /tmp/verge/verge-mihomo.sock \
+#           'http://localhost/dns/query?name=chatgpt.com'`
+# 期望返回 Cloudflare IP(104.18.x.x / 172.64.x.x),不是国内 IP。
+
+mixed-port: 7890
+allow-lan: false
+mode: rule
+log-level: info
+ipv6: false
+
+# DNS:解决 GFW 污染主域(如 chatgpt.com 解析到国内 IP)+ 国内/境外分流
+# 设计要点:
+# 1. respect-rules: true → DoH 查询本身跑 rules,境外 DoH 经代理出去绕开 GFW
+# 2. DoH 用 IP 形式 → 不需要 bootstrap 解析 host,避免鸡生蛋
+# 3. nameserver-policy → 国内域名走国内 DoH(快+准),境外走 nameserver(经代理)
+# 4. 不配 fallback/fallback-filter → Verge 默认 fallback-filter.geoip-code: CN
+#    会让国内站误走境外 DoH 超时(baidu 5s 慢的元凶)
+dns:
+  enable: true
+  listen: :53
+  ipv6: false
+  enhanced-mode: fake-ip
+  fake-ip-range: 198.18.0.1/16
+  fake-ip-filter:
+    - '*.lan'
+    - '*.local'
+    - '*.arpa'
+    - localhost.ptlogin2.qq.com
+    - +.market.xiaomi.com
+    - '*.msftncsi.com'
+    - www.msftconnecttest.com
+    - time.*.com
+    - ntp.*.com
+  # bootstrap:仅用于解析 nameserver 里的 DoH host(我们都用 IP 形式,基本走不到)
+  default-nameserver:
+    - 223.5.5.5
+    - 119.29.29.29
+  # 关键:让 DoH 查询走 rules → 境外 DoH 经代理节点出去
+  respect-rules: true
+  # 默认 nameserver:境外 DoH,IP 形式免 bootstrap;经代理通道出去
+  nameserver:
+    - https://1.1.1.1/dns-query
+    - https://8.8.8.8/dns-query
+  # 国内域名分流:走国内 DoH(快+准+不依赖代理)
+  nameserver-policy:
+    'geosite:cn,private':
+      - https://223.5.5.5/dns-query
+      - https://120.53.53.53/dns-query
+  # mihomo dial 代理 server 时用(我们节点是 IP 不需解析,但保险配上防循环)
+  proxy-server-nameserver:
+    - https://223.5.5.5/dns-query
+
+proxies:
+  - name: "us-reality"
+    type: vless
+    server: 216.167.67.136
+    port: 443
+    uuid: "2a05771a-7be9-43f6-be5e-bd103496e686"
+    network: tcp
+    # udp: true → mihomo 把客户端 UDP(QUIC/DNS over UDP)经此 vless 节点转发
+    # 实际转发时仍走 Reality 的 TCP 通道封装。关掉的话 UDP 会绕过此节点走 DIRECT
+    udp: true
+    flow: xtls-rprx-vision
+    tls: true
+    servername: addons.mozilla.org
+    reality-opts:
+      public-key: QIkMTJeI_9Gv32WwZ66UUmaLpN618NcsnQManDfbgVA
+      short-id: ce0ae5c1321ff5d9
+    client-fingerprint: chrome
+
+  - name: us-hy2
+    type: hysteria2
+    server: 216.167.67.136
+    port: 8443
+    password: fef7356d3381bb348d09d25dcf0767d7
+    sni: www.microsoft.com
+    skip-cert-verify: true
+    alpn:
+      - h3
+
+proxy-groups:
+  - name: PROXY
+    type: select
+    proxies:
+      - us-reality
+      - us-hy2
+      - AUTO
+      - DIRECT
+
+  - name: AUTO
+    type: url-test
+    proxies:
+      - us-reality
+      - us-hy2
+    url: https://www.gstatic.com/generate_204
+    interval: 300
+
+rules:
+  # 防 mihomo loop:节点 server IP 必须 DIRECT,否则 mihomo dial 节点会被 TUN 截回循环
+  - IP-CIDR,216.167.67.136/32,DIRECT,no-resolve
+
+  # 安全网:GFW 高频污染域名显式走代理(显式 > 隐式;geosite 数据库滞后时仍生效)
+  - DOMAIN-SUFFIX,chatgpt.com,PROXY
+  - DOMAIN-SUFFIX,openai.com,PROXY
+  - DOMAIN-SUFFIX,oaistatic.com,PROXY
+  - DOMAIN-SUFFIX,oaiusercontent.com,PROXY
+
+  # 治本:GFW 黑名单域名一次性走代理(geosite 自动更新,免后续维护单条 DOMAIN-SUFFIX)
+  - GEOSITE,gfw,PROXY
+
+  # 国内常见站显式直连(快 + 省代理流量)
+  - DOMAIN-SUFFIX,cn,DIRECT
+  - DOMAIN-SUFFIX,baidu.com,DIRECT
+  - DOMAIN-SUFFIX,qq.com,DIRECT
+  - DOMAIN-SUFFIX,taobao.com,DIRECT
+  - DOMAIN-SUFFIX,tmall.com,DIRECT
+  - DOMAIN-SUFFIX,jd.com,DIRECT
+  - DOMAIN-SUFFIX,bilibili.com,DIRECT
+  - DOMAIN-SUFFIX,163.com,DIRECT
+  - DOMAIN-SUFFIX,126.com,DIRECT
+  - DOMAIN-SUFFIX,zhihu.com,DIRECT
+  - DOMAIN-SUFFIX,douyin.com,DIRECT
+  - DOMAIN-SUFFIX,weibo.com,DIRECT
+  - DOMAIN-SUFFIX,alipay.com,DIRECT
+  - DOMAIN-SUFFIX,aliyun.com,DIRECT
+  - DOMAIN-SUFFIX,tencentcloud.com,DIRECT
+
+  # GeoIP 兜底
+  - GEOIP,LAN,DIRECT
+  - GEOIP,CN,DIRECT
+  - MATCH,PROXY
