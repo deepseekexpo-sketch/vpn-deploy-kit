@@ -26,3 +26,7 @@ id_rsa*
 # === 独立的 secrets 文件 ===
 *secrets*.md
 *secret*.json
+
+# 客户端订阅配置(含真实 IP/UUID/密钥, 绝不入库)
+sub/*.yaml
+sub/*.json
